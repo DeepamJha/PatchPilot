@@ -1,3 +1,5 @@
+import path from "node:path";
+
 const INJECTION_PATTERNS = [
   /ignore\s+(?:all\s+)?previous\s+instructions/i,
   /system\s+prompt/i,
@@ -12,14 +14,18 @@ export interface ToolAction {
 }
 
 export function redactUntrustedText(text: string): string {
-  return text.replace(INJECTION_PATTERNS, "[REDACTED_PROMPT_INJECTION]");
+  return INJECTION_PATTERNS.reduce(
+    (safe, pattern) => safe.replace(pattern, "[REDACTED_PROMPT_INJECTION]"),
+    text
+  );
 }
 
 /** Stage one handles content; stage two rejects dangerous actions before execution. */
 export function validateToolAction(action: ToolAction, workspace: string): void {
   if (action.path) {
-    const resolved = require("node:path").resolve(workspace, action.path);
-    if (!resolved.startsWith(require("node:path").resolve(workspace) + require("node:path").sep)) {
+    const root = path.resolve(workspace);
+    const resolved = path.resolve(root, action.path);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
       throw new Error("path traversal is not allowed");
     }
   }

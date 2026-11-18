@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { extractChunks } from "../src/ast.js";
 import { reciprocalRankFusion } from "../src/retrieval.js";
 import { redactUntrustedText, validateToolAction } from "../src/firewall.js";
-import { sandboxArgs } from "../src/sandbox.js";
+import { repairWithRetries, sandboxArgs } from "../src/sandbox.js";
 
 test("extracts named TypeScript declarations with line metadata", () => {
   const chunks = extractChunks("a.ts", "const x = 1;\nfunction fix() { return x; }\n");
@@ -26,4 +26,18 @@ test("sandbox configuration is networkless and resource limited", () => {
   const args = sandboxArgs("/repo");
   assert.ok(args.includes("--network") && args.includes("none"));
   assert.ok(args.includes("--memory") && args.includes("256m"));
+});
+
+test("repair loop stops after the third isolated attempt", async () => {
+  let runs = 0;
+  const result = await repairWithRetries("candidate", {
+    workspace: "/repo",
+    run: async () => ({ passed: false, stdout: "", stderr: "failure", exitCode: 1 })
+  }, async (candidate, diagnostics, attempt) => {
+    runs++;
+    assert.equal(diagnostics, "failure");
+    return `${candidate}-${attempt}`;
+  });
+  assert.equal(result.attempts, 3);
+  assert.equal(runs, 2);
 });

@@ -20,7 +20,12 @@ export function extractChunks(filePath: string, source: string): CodeChunk[] {
   ]);
   function visit(node: ts.Node): void {
     if (declarationKinds.has(node.kind)) {
-      const named = (node as ts.DeclarationStatement).name;
+      const declaration = node as ts.DeclarationStatement;
+      const named = "name" in declaration
+        ? (declaration as ts.NamedDeclaration).name
+        : ts.isVariableStatement(node)
+          ? node.declarationList.declarations[0]?.name
+          : undefined;
       const symbol = named?.getText(file) ?? `anonymous-${chunks.length}`;
       const start = file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
       chunks.push({
